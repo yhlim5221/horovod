@@ -31,6 +31,13 @@ class HostsUpdatedInterrupt(RuntimeError):
     def __init__(self, skip_sync):
         self.skip_sync = skip_sync
 
+class NewRankReadyInterrupt(RuntimeError):
+    """
+    Internal interrupt event inidicating that the new rank has finished initialization and
+    ready to synchronize.
+    This will result in sync but no reset event
+    """
+    pass
 
 def get_version_mismatch_message(name, version, installed_version):
     return f'Framework {name} installed with version {installed_version} but found version {version}.\n\

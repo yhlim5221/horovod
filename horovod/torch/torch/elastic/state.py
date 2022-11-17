@@ -61,7 +61,7 @@ class TorchState(ObjectState):
     def sync(self, process_set_id=0):
         for handler in self._handlers.values():
             handler.sync(process_set_id)
-        super(TorchState, self).sync(process_set_id)
+        super(TorchState, self).sync()
 
     def __setattr__(self, name, value):
         if hasattr(self, name) and name in self._handlers:

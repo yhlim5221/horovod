@@ -49,7 +49,7 @@ class HorovodBasics(object):
         self.HOROVOD_PROCESS_SET_ERROR_EXISTING_SET = -6
 
     def init(self, comm: Optional[Union[Sequence[int], MPI.Comm]] = None,
-             process_sets: Optional[Sequence[ProcessSet]] = None):
+             process_sets: Optional[Sequence[ProcessSet]] = None, **kwargs):
         """A function that initializes Horovod.
 
         Args:
@@ -441,6 +441,41 @@ class HorovodBasics(object):
         elif result == self.HOROVOD_PROCESS_SET_ERROR_UNKNOWN_SET:
             raise ValueError("Process set does not exist or has not been registered.")
         return result
+    
+    def _mark_new_rank_ready(self, mark: bool):
+        """ mark new rank ready true at process set table
+        """
+        if mark:
+            mark = 1
+        else :
+            mark = 0
+        print(f"mark = {mark}")
+        return int(self.MPI_LIB_CTYPES.horovod_mark_new_rank_ready(ctypes.c_int(mark)))
+
+    def _read_new_rank_ready(self):
+        """ Return new rank ready value
+        """
+        result = int(self.MPI_LIB_CTYPES.horovod_read_new_rank_ready())
+        if result == 1:
+            return True
+        else :
+            return False
+
+    def _number_of_process_sets(self) -> int:
+        """ Return if process set of given id exist. """
+        return int(self.MPI_LIB_CTYPES.horovod_number_of_process_sets())
+
+    def _is_process_set_included(self, process_set_id: int) -> bool:
+        """ Return 1 : included
+                   0 : not included
+                   negative : errors, not init or unknown set
+        """
+        result = int(self.MPI_LIB_CTYPES.horovod_process_set_included(
+            ctypes.c_int(process_set_id)))
+        if result == 1 :
+            return True
+        else :
+            return False
 
     def _get_process_set_ids_and_ranks(self) -> Dict[int, List[int]]:
         """ Returns a dictionary { process_set_id: list of process set ranks }, for internal use.

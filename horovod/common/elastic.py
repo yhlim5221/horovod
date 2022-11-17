@@ -15,10 +15,17 @@
 
 import functools
 import queue
+import time
+import functiontrace
+#import cProfile, pstats, io
+#from pstats import SortKey
+#import logging
 
-from horovod.common.exceptions import HorovodInternalError, HostsUpdatedInterrupt
+from horovod.common.exceptions import HorovodInternalError, HostsUpdatedInterrupt, NewRankReadyInterrupt
+from horovod.common.process_sets import ProcessSet, global_process_set, \
+        add_process_set, remove_process_set, number_of_process_sets, is_process_set_included, \
+        size_of_process_set, _temp_process_set_object, mark_new_rank_ready, read_new_rank_ready
 from horovod.runner.elastic.worker import HostUpdateResult, WorkerNotificationManager
-
 
 notification_manager = WorkerNotificationManager()
 
@@ -36,6 +43,7 @@ class State(object):
         self._host_messages = queue.Queue()
         self._last_updated_timestamp = 0
         self._reset_callbacks = []
+        self._process_set = global_process_set
 
     def register_reset_callbacks(self, callbacks):
         """Register callbacks that will be invoked following a reset event (worker added or removed).
@@ -89,13 +97,20 @@ class State(object):
         # the updated state across all the workers.
         # TODO(travis): this should be a max allreduce to account for changes in rank 0
         prev_timestamp, self._last_updated_timestamp, all_update = \
-            self._bcast_object((prev_timestamp, last_updated_timestamp, all_update))
+            self._bcast_object((prev_timestamp, last_updated_timestamp, all_update), process_set=self._process_set)
 
         # At this point, updated state is globally consistent across all ranks.
         if self._last_updated_timestamp > prev_timestamp:
             raise HostsUpdatedInterrupt(all_update == HostUpdateResult.removed)
 
-
+    def check_new_rank_ready(self):
+        """ Check if new rank is ready to synchronize with other workers.
+            When new ranks are ready, raise a `NewRankReadyInterrupt`
+        """
+        new_rank_ready = read_new_rank_ready()
+        if new_rank_ready:
+            raise NewRankReadyInterrupt()
+    
     def save(self):
         """Saves state to host memory."""
         raise NotImplementedError()
@@ -138,38 +153,83 @@ class ObjectState(State):
     def restore(self):
         self._set_attrs()
 
-    def sync(self):
+    def sync(self, process_set_id=0):
         if self._saved_state:
-            self._saved_state = self._bcast_object(self._saved_state)
+            self._saved_state = self._bcast_object(self._saved_state,
+                    process_set=_temp_process_set_object(process_set_id))
             self._set_attrs()
 
     def _set_attrs(self):
         for attr, value in self._saved_state.items():
             setattr(self, attr, value)
 
+def clean_temp_process_sets():
+    if number_of_process_sets() > 2:
+        remove_process_set(_temp_process_set_object(2))
+        remove_process_set(_temp_process_set_object(1))
 
 def run_fn(func, reset):
     @functools.wraps(func)
     def wrapper(state, *args, **kwargs):
         notification_manager.init()
         notification_manager.register_listener(state)
+        rank_size = size_of_process_set(0) 
         skip_sync = False
-
+        skip_reset = False
+        current_process_set=0
+        #time sync
+        #logging.basicConfig(filename='/log/' + str(state._rank()) + '-elastic.log', level=logging.INFO)
+        update = False
+        update_time = 0
         try:
             while True:
                 try:
-                    if not skip_sync:
-                        state.sync()
+                    if number_of_process_sets() > 2 and \
+                            is_process_set_included(2):
+                        mark_new_rank_ready(True)
 
-                    return func(state, *args, **kwargs)
+                    if not skip_sync:
+                        if current_process_set != 1:
+                            clean_temp_process_sets()
+                            mark_new_rank_ready(False)
+                        print(f"start sync... {current_process_set}")
+                        state.sync(process_set_id=current_process_set)
+
+                    if update:
+                        update = False
+                        print(time.time()-update_time)
+                    print(f"start real training...{time.time()}") 
+                    return func(state)
                 except HorovodInternalError:
                     state.restore()
                     skip_sync = False
+                    skip_reset = False
                 except HostsUpdatedInterrupt as e:
                     skip_sync = e.skip_sync
+                    skip_reset = False
+                    update = True
+                    update_time = time.time()
+                    #functiontrace.trace()
+                    #profiler = cProfile.Profile()
+                    #profiler.enable()
+                except NewRankReadyInterrupt:
+                    print("new rank ready...")
+                    skip_reset = True
+                    skip_sync = False
+                    current_process_set = 0
+                    state.optimizer.process_set = global_process_set
+                    state._process_set = global_process_set
+                    rank_size = size_of_process_set(0)
 
-                reset()
-                state.on_reset()
+                if not skip_reset:
+                    reset(old_rank_size=rank_size)
+                    if rank_size < size_of_process_set(0):
+                        current_process_set = 1
+                        state.optimizer.process_set=_temp_process_set_object(1)
+                        state._process_set=_temp_process_set_object(1)
+                    else :
+                        rank_size = size_of_process_set(0)
+                    state.on_reset()
         finally:
             notification_manager.remove_listener(state)
     return wrapper

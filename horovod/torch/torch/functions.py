@@ -51,7 +51,7 @@ def broadcast_parameters(params, root_rank, process_set=global_process_set):
     # Run asynchronous broadcasts.
     handles = []
     for name, p in params:
-        handle = broadcast_async_(p, root_rank, name, process_set)
+        handle = broadcast_async_(p, root_rank, name)
         handles.append(handle)
 
     # Wait for completion.
@@ -183,7 +183,7 @@ def broadcast_optimizer_state(optimizer, root_rank, process_set=global_process_s
     broadcast_parameters(params, root_rank, process_set)
 
     # Broadcast and cleanup for non-tensor parameters
-    scalars = broadcast_object(scalars, root_rank, process_set=process_set)
+    scalars = broadcast_object(scalars, root_rank)
     for key, p in scalars.items():
         callbacks[key](p)
 

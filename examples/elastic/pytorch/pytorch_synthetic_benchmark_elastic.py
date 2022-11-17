@@ -23,7 +23,7 @@ parser.add_argument('--num-warmup-batches', type=int, default=10,
                     help='number of warm-up batches that don\'t count towards benchmark')
 parser.add_argument('--num-batches-per-iter', type=int, default=10,
                     help='number of batches per benchmark iteration')
-parser.add_argument('--num-iters', type=int, default=10,
+parser.add_argument('--num-iters', type=int, default=100,
                     help='number of benchmark iterations')
 parser.add_argument('--num-batches-per-commit', type=int, default=1,
                     help='number of batches per commit of the elastic state object')

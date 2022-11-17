@@ -54,7 +54,6 @@ if _MPI_LIB_AVAILABLE:
     from horovod.torch.mpi_ops import HorovodInternalError
     from horovod.torch.optimizer import DistributedOptimizer
     from horovod.torch.sync_batch_norm import SyncBatchNorm
-    from horovod.torch.mpi_ops import read_new_rank_ready
 
 # Please run this function in a subprocess
 def _check_has_gpu():

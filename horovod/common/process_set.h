@@ -139,6 +139,11 @@ public:
 
   bool ProcessSetHasJustBeenRemoved();
 
+  void MarkNewRankReady(bool mark);
+  bool ReadNewRankReady();
+  bool CheckAllReady();
+  void CheckNewRankReady(const GlooContext& context);
+
   // Guard access to the table by this mutex
   mutable std::recursive_mutex mutex;
 
@@ -154,6 +159,8 @@ private:
   template <class Context>
   void Finalize_(const Context& context, const Status& removal_status);
 
+  template <class Context> void CheckNewRankReady_(const Context& context);
+
   std::unordered_map<int32_t, ProcessSet> id_to_process_set_;
 
   // Tracks ids by insertion order
@@ -168,6 +175,8 @@ private:
   static constexpr int32_t NO_PENDING_REMOVAL = -1;
   static constexpr int32_t SUCCESSFUL_REMOVAL = -2;
   int32_t id_to_be_removed_ = NO_PENDING_REMOVAL;
+  bool new_rank_ready_ = false;
+  bool all_ready_ = false;
 };
 
 } // namespace common

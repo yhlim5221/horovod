@@ -27,7 +27,8 @@ from contextlib import contextmanager
 from horovod.common.exceptions import get_version_mismatch_message, HorovodVersionMismatchError
 
 
-EXTENSIONS = ['tensorflow', 'torch', 'mxnet']
+#EXTENSIONS = ['tensorflow', 'torch', 'mxnet']
+EXTENSIONS = ['torch']
 
 
 def get_ext_suffix():

@@ -23,8 +23,7 @@ import warnings
 from horovod.common.basics import HorovodBasics as _HorovodBasics
 from horovod.common.exceptions import HorovodInternalError
 from horovod.common.process_sets import _setup as _setup_process_sets
-from horovod.common.process_sets import ProcessSet, global_process_set, add_process_set, remove_process_set
-from horovod.common.process_sets import is_process_set_included, read_new_rank_ready
+from horovod.common.process_sets import ProcessSet, global_process_set, add_process_set
 from horovod.common.util import check_installed_version, get_average_backwards_compatibility_fun, gpu_available, num_rank_is_power_2
 
 from horovod.torch.compression import Compression
@@ -75,15 +74,17 @@ def init(*args, **kwargs):
     _setup_process_sets(_basics)
     
     #divide process sets if re-init
-    old_rank_size = kwargs.get('old_rank_size')
+    old_rank_size = kwargs['old_rank_size']
     if old_rank_size is None:
         old_rank_size = 0
     old_rank_size = broadcast_(torch.IntTensor([old_rank_size,]), 0, name='oldranksize')
-    if old_rank_size > 0 and \
-            old_rank_size < size():
-        ranks = list(range(size()))
+    if old_rank_size > 0:
+        ranks = list(range(size_of_process_set(0)))
+        print("Adding process sets...")
         add_process_set(ranks[:old_rank_size])
         add_process_set(ranks[old_rank_size:])
+        print("Done Adding process sets...")
+    print("Done init...")
 
 # import reduction op values
 Average = _basics.Average

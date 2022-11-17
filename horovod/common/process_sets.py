@@ -119,6 +119,40 @@ def _init_process_sets(process_set_list: List[ProcessSet]):
     if global_process_set.ranks != id_to_ranks_dict[0]:
         global_process_set.ranks = id_to_ranks_dict[0]
 
+def number_of_process_sets() -> int:
+    """ Return number of process sets
+    """
+    assert _basics is not None
+    num_process_sets = _basics._number_of_process_sets()
+    if not num_process_sets:
+        raise ValueError(f"Number of process sets: {num_process_sets} is not normal")
+    return num_process_sets
+
+def is_process_set_included(process_set_id: int) -> bool:
+    """ Return if current process is inlcuded in given process set
+    """
+    assert _basics is not None
+    if process_set_id == 0:
+        return True
+    return _basics._is_process_set_included(process_set_id)
+
+def size_of_process_set(process_set_id: int) -> int:
+    """ Return size of the process set of given id
+    """
+    assert _basics is not None
+    return _basics._process_set_size(process_set_id)
+
+def mark_new_rank_ready(mark: bool):
+    """ Mark new rank ready true at process set table
+    """
+    assert _basics is not None
+    return _basics._mark_new_rank_ready(mark)
+
+def read_new_rank_ready():
+    """ Return new rank ready from process set table
+    """
+    assert _basics is not None
+    return _basics._read_new_rank_ready()
 
 def add_process_set(process_set: Union[ProcessSet, Sequence[int]]) -> ProcessSet:
     """ Add a new process_set after Horovod initialization and return it.
@@ -134,8 +168,9 @@ def add_process_set(process_set: Union[ProcessSet, Sequence[int]]) -> ProcessSet
             "Dynamically adding process sets defined by an MPI communicator is not implemented. "
             "Please build the process set via a list of ranks.")
     assert process_set.ranks is not None
-
+    print("calling _basics._add_process")
     process_set_id = _basics._add_process_set_impl(process_set.ranks)
+    print("Done add process set")
     if process_set_id is None:
         raise ValueError(f"Attempted to add a duplicate process set: {process_set}")
     process_set.process_set_id = process_set_id

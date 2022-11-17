@@ -403,5 +403,51 @@ bool ProcessSetTable::ProcessSetHasJustBeenRemoved() {
   return false;
 }
 
+void ProcessSetTable::MarkNewRankReady(bool mark) {
+  std::lock_guard<std::recursive_mutex> guard(mutex);
+  new_rank_ready_ = mark;
+}
+
+bool ProcessSetTable::ReadNewRankReady() {
+  std::lock_guard<std::recursive_mutex> guard(mutex);
+  return new_rank_ready_;
+}
+
+
+template <class Context>
+void ProcessSetTable::CheckNewRankReady_(const Context& global_context) {
+  std::lock_guard<std::recursive_mutex> guard(mutex);
+  if (!Get(2).initialization_done) {
+	return;
+  } 
+  std::array<int, 2> pairs{all_ready_, new_rank_ready_}; 
+  auto& global_controller = *Get(0).controller;
+  auto recv_buffer = std::vector<int>(2 * global_controller.GetSize());
+  global_controller.Allgather2Ints(pairs, recv_buffer);
+
+  int half = Get(2).registered_global_ranks.size() / 2;
+  if (half == 0) half = 1;
+  int count_until_half = 0;
+  for (int i = 0; i < 2 * global_controller.GetSize() && count_until_half < half; i+=2) {
+    auto ready = recv_buffer[i+1];
+    if (ready) {
+      count_until_half++;
+    }
+  }
+
+  if (count_until_half >= half) {
+    new_rank_ready_ = true;
+    all_ready_ = true;
+  }
+}
+
+void ProcessSetTable::CheckNewRankReady(const GlooContext& context) {
+  CheckNewRankReady_(context);
+}
+
+bool ProcessSetTable::CheckAllReady() {
+  return all_ready_;
+}
+
 } // common
 } // horovod

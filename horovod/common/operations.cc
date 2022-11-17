@@ -777,6 +777,12 @@ bool RunLoopOnce(HorovodGlobalState& state) {
     if (state.control_operation == LibType::GLOO) {
       state.process_set_table.InitializeRegisteredAndRemoveMarkedIfReady(
           global_gloo_context);
+      // Check ready status for new ranks and set all process set table true
+      // if more than half of the new ranks said ready, so that the training
+      // ranks can raise exceptions.
+      if (state.process_set_table.Ids().size() > 2){
+        state.process_set_table.CheckNewRankReady(global_gloo_context);
+      }
     }
 #endif // HAVE_GLOO
   }
@@ -1254,6 +1260,49 @@ const int HOROVOD_PROCESS_SET_ERROR_UNKNOWN_SET = -3;
 const int HOROVOD_PROCESS_SET_ERROR_FOREIGN_SET = -4;
 const int HOROVOD_PROCESS_SET_ERROR_SHUTDOWN = -5;
 const int HOROVOD_PROCESS_SET_ERROR_EXISTING_SET = -6;
+
+int horovod_mark_new_rank_ready(const int mark) {
+  if (!horovod_global.initialization_done) {
+    return HOROVOD_PROCESS_SET_ERROR_INIT;
+  }
+  if (!horovod_global.dynamic_process_sets) {
+    return HOROVOD_PROCESS_SET_ERROR_DYNAMIC;
+  }
+  // Mark new rank ready as true
+  {
+    std::lock_guard<std::recursive_mutex> table_lock(
+        horovod_global.process_set_table.mutex);
+    if (mark == 1) horovod_global.process_set_table.MarkNewRankReady(true);
+    else horovod_global.process_set_table.MarkNewRankReady(false);
+  }
+  if (mark) std::cout << "mark: " << mark << "TRUE" << std::endl;
+  while(mark) {
+    if(horovod_global.process_set_table.CheckAllReady()) {
+	return 1;
+    }
+    if (horovod_global.shut_down) {
+      return HOROVOD_PROCESS_SET_ERROR_SHUTDOWN;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  return 1;
+}
+
+bool horovod_read_new_rank_ready(void) {
+  if (!horovod_global.initialization_done) {
+    return false;
+  }
+  if (!horovod_global.dynamic_process_sets) {
+    return false;
+  }
+  // Read new rank ready
+  {
+    std::lock_guard<std::recursive_mutex> table_lock(
+        horovod_global.process_set_table.mutex);
+
+    return horovod_global.process_set_table.ReadNewRankReady();
+  }
+}
 
 int horovod_add_process_set(const int* ranks, int nrank) {
   if (!horovod_global.initialization_done) {

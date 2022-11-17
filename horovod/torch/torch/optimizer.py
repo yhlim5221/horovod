@@ -31,7 +31,6 @@ from horovod.torch.mpi_ops import size
 from horovod.torch.mpi_ops import Average, Adasum, Sum
 from horovod.torch.mpi_ops import rocm_built
 from horovod.torch.mpi_ops import ProcessSet, global_process_set
-from horovod.torch.mpi_ops import is_process_set_included
 
 
 class _DistributedOptimizer(torch.optim.Optimizer):
@@ -254,7 +253,7 @@ class _DistributedOptimizer(torch.optim.Optimizer):
         return hook
 
     def synchronize(self):
-        if not is_process_set_included(self.process_set.process_set_id):
+        if not self.process_set.included():
             self._synchronized = True
             return
 
