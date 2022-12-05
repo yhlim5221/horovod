@@ -73,9 +73,7 @@ RUN ln -s -f /usr/bin/python${PYTHON_VERSION} /usr/bin/python
 RUN ln -s -f /usr/bin/python${PYTHON_VERSION} /usr/bin/python${PYTHON_VERSION/%.*/}
 RUN wget --progress=dot:mega https://bootstrap.pypa.io/get-pip.py && python get-pip.py && rm get-pip.py
 
-# pinning pip to 21.0.0 as 22.0.0 cannot fetch pytorch packages from html linl
-# https://github.com/pytorch/pytorch/issues/72045
-RUN pip install --no-cache-dir -U --force pip~=21.0.0 "setuptools<60.1.0" requests pytest mock pytest-forked parameterized
+RUN pip install --no-cache-dir -U --force requests pytest mock pytest-forked parameterized
 
 # Add launch helper scripts
 RUN echo "env SPARK_HOME=/spark SPARK_DRIVER_MEM=512m PYSPARK_PYTHON=/usr/bin/python${PYTHON_VERSION} PYSPARK_DRIVER_PYTHON=/usr/bin/python${PYTHON_VERSION} \"\$@\"" > /spark_env.sh
@@ -159,8 +157,8 @@ RUN if [[ ${PYTORCH_PACKAGE} != "torch-nightly-cu"* ]]; then \
         else \
             pip install --no-cache-dir "Pillow!=8.3.0" --no-deps; \
         fi; \
+        pip install ${PYTORCH_LIGHTNING_PACKAGE}; \
     fi
-RUN pip install ${PYTORCH_LIGHTNING_PACKAGE}
 
 # Install MXNet (releases).
 RUN if [[ ${MXNET_PACKAGE} != "mxnet-nightly-cu"* ]]; then \
@@ -200,6 +198,7 @@ RUN if [[ ${TENSORFLOW_PACKAGE} == "tf-nightly-gpu" ]]; then \
 RUN if [[ ${PYTORCH_PACKAGE} == "torch-nightly-cu"* ]]; then \
         pip install --no-cache-dir --pre torch ${TORCHVISION_PACKAGE} -f https://download.pytorch.org/whl/nightly/${PYTORCH_PACKAGE/#torch-nightly-/}/torch_nightly.html; \
         pip install --no-cache-dir "Pillow!=8.3.0" --no-deps; \
+        pip install ${PYTORCH_LIGHTNING_PACKAGE}; \
     fi
 
 # Install MXNet (nightly).
