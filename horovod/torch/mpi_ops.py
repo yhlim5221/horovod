@@ -75,15 +75,30 @@ def init(*args, **kwargs):
     _setup_process_sets(_basics)
     
     #divide process sets if re-init
+    #old_rank : 1 means old rank, 0 means new rank
     old_rank_size = kwargs.get('old_rank_size')
+    old_rank = 1
     if old_rank_size is None:
+        old_rank = 0
         old_rank_size = 0
+    
     old_rank_size = broadcast_(torch.IntTensor([old_rank_size,]), 0, name='oldranksize')
     if old_rank_size > 0 and \
             old_rank_size < size():
-        ranks = list(range(size()))
-        add_process_set(ranks[:old_rank_size])
-        add_process_set(ranks[old_rank_size:])
+        current_rank = rank() 
+        ranks_before_divide = allgather(torch.IntTensor([old_rank, current_rank]), name='oldrankcheck')
+        old_ranks = []
+        new_ranks = []
+        for item in zip(*(iter(ranks_before_divide),) * 2):
+            if item[0] == 1:
+                old_ranks.append(item[1].item())
+            else:
+                new_ranks.append(item[1].item())
+        print(f"Adding process sets...{old_rank_size}")
+        add_process_set(old_ranks)
+        add_process_set(new_ranks)
+        print("Done Adding process sets...")
+    print("Done init...")
 
 # import reduction op values
 Average = _basics.Average

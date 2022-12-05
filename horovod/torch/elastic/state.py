@@ -21,9 +21,10 @@ from horovod.common.elastic import ObjectState
 from horovod.torch.elastic.sampler import ElasticSampler
 from horovod.torch.functions import allgather_object, \
     broadcast_object, broadcast_optimizer_state, broadcast_parameters
-from horovod.torch.mpi_ops import rank
+from horovod.torch.mpi_ops import rank, cross_rank, cross_size, local_rank, local_size
 from horovod.common.process_sets import ProcessSet, global_process_set, \
-        _temp_process_set_object
+        _temp_process_set_object, add_process_set, remove_process_set, \
+        is_process_set_included
 
 class TorchState(ObjectState):
     """State representation of a PyTorch training process.
@@ -44,6 +45,9 @@ class TorchState(ObjectState):
         self._handlers, kwargs = _get_handlers(kwargs)
         for name, handler in self._handlers.items():
             setattr(self, name, handler.value)
+
+        self.cross_rank = cross_rank()
+        self.cross_size = cross_size()
         super(TorchState, self).__init__(bcast_object=broadcast_object,
                                          get_rank=rank,
                                          **kwargs)
@@ -58,10 +62,59 @@ class TorchState(ObjectState):
             handler.restore()
         super(TorchState, self).restore()
 
-    def sync(self, process_set_id=0):
+    def _sync(self, root_rank=0, process_set_id=0):
         for handler in self._handlers.values():
-            handler.sync(process_set_id)
-        super(TorchState, self).sync(process_set_id)
+            handler.sync(root_rank, process_set_id)
+        super(TorchState, self).sync(root_rank, process_set_id)
+
+
+    def sync(self, old_rank=0, process_set_id=0):
+        if self.cross_size == 1:
+            self._sync(process_set_id)
+            return
+
+        worker_info = [self.cross_rank, self._rank(), old_rank]
+        cluster_map = allgather_object(torch.IntTensor(worker_info), name='clustermap')
+        host_map = dict()
+        for idx, item in enumerate(cluster_map):
+            old_new = 'old' if item[2].item() else 'new'
+            complement_old_new = 'new' if old_new == 'old' else 'old'
+            if item[0].item() in host_map:
+                host_map[item[0].item()][old_new].append(item[1].item())
+            else:
+                host_map[item[0].item()] = {old_new:[item[1].item()], complement_old_new:[]}
+        no_old_hosts = []
+        for i in range(self.cross_size):
+            if not host_map[i]['old']:
+                no_old_hosts.append(host_map[i]['new'][0])
+                host_map[i]['old']=[host_map[i]['new'][0]]
+                host_map[i]['new'].remove(host_map[i]['new'][0])
+        if len(no_old_hosts) == self.cross_size:
+            return
+        if no_old_hosts:
+            """ If all the hosts are new, then no need to sync
+                add process set of no old worker hosts' first rank with rank 0
+                call _sync with them first
+                remove process set
+            """
+            no_old_hosts.append(0)
+            temp = add_process_set(no_old_hosts)
+            if is_process_set_included(temp.process_set_id):
+                _sync(process_set_id=temp.process_set_id)
+            remove_process_set(temp)
+
+        host_process_set_list = dict()
+        for i in range(self.cross_size):
+            if not host_map[i]['new']:
+                continue
+            print(str(i)+" "+str([host_map[i]['old'][0]]+host_map[i]['new']))
+            host_process_set_list[i] = add_process_set([host_map[i]['old'][0]]+host_map[i]['new'])
+        if host_process_set_list.get(self.cross_rank) and \
+                is_process_set_included(host_process_set_list[self.cross_rank].process_set_id): 
+            self._sync(root_rank=host_process_set_list[self.cross_rank].ranks[0],
+                    process_set_id=host_process_set_list[self.cross_rank].process_set_id)
+        for host_process_set in host_process_set_list.values():
+            remove_process_set(host_process_set)
 
     def __setattr__(self, name, value):
         if hasattr(self, name) and name in self._handlers:
@@ -98,8 +151,9 @@ class ModelStateHandler(StateHandler):
     def restore(self):
         self.value.load_state_dict(self._saved_model_state)
 
-    def sync(self, process_set_id=0):
-        broadcast_parameters(self.value.state_dict(), root_rank=0, 
+    def sync(self, root_rank=0, process_set_id=0):
+        print("sync models...")
+        broadcast_parameters(self.value.state_dict(), root_rank=root_rank, 
                 process_set=_temp_process_set_object(process_set_id))
 
 
@@ -114,8 +168,9 @@ class OptimizerStateHandler(StateHandler):
     def restore(self):
         self.value.load_state_dict(self._saved_optimizer_state)
 
-    def sync(self, process_set_id=0):
-        broadcast_optimizer_state(self.value, root_rank=0, 
+    def sync(self, root_rank=0, process_set_id=0):
+        print("sync optimizer...")
+        broadcast_optimizer_state(self.value, root_rank=root_rank, 
                 process_set=_temp_process_set_object(process_set_id))
 
 
@@ -130,11 +185,11 @@ class SamplerStateHandler(StateHandler):
     def restore(self):
         self.value.load_state_dict(self._saved_sampler_state)
 
-    def sync(self, process_set_id=0):
+    def sync(self, root_rank=0, process_set_id=0):
         state_dict = self.value.state_dict()
-
+        print("sync sampler...")
         # Broadcast and load the state to make sure we're all in sync
-        self.value.load_state_dict(broadcast_object(state_dict, 
+        self.value.load_state_dict(broadcast_object(state_dict, root_rank=root_rank,
             process_set=_temp_process_set_object(process_set_id)))
 
 

@@ -153,9 +153,10 @@ class ObjectState(State):
     def restore(self):
         self._set_attrs()
 
-    def sync(self, process_set_id=0):
+    def sync(self, root_rank=0, process_set_id=0):
         if self._saved_state:
-            self._saved_state = self._bcast_object(self._saved_state,
+            self._saved_state = self._bcast_object(self._saved_state, 
+                    root_rank=root_rank,
                     process_set=_temp_process_set_object(process_set_id))
             self._set_attrs()
 
@@ -176,6 +177,7 @@ def run_fn(func, reset):
         rank_size = size_of_process_set(0) 
         skip_sync = False
         skip_reset = False
+        old_rank = 0
         current_process_set=0
         #time sync
         #logging.basicConfig(filename='/log/' + str(state._rank()) + '-elastic.log', level=logging.INFO)
@@ -183,6 +185,8 @@ def run_fn(func, reset):
         update_time = 0
         try:
             while True:
+                print(f"global process set ranks: {global_process_set.ranks}"
+                      f"my rank: {state._rank()}")
                 try:
                     if number_of_process_sets() > 2 and \
                             is_process_set_included(2):
@@ -192,8 +196,9 @@ def run_fn(func, reset):
                         if current_process_set != 1:
                             clean_temp_process_sets()
                             mark_new_rank_ready(False)
-                        print(f"start sync... {current_process_set}")
-                        state.sync(process_set_id=current_process_set)
+                        print(f"start sync...{time.time()}, {current_process_set}")
+                        state._sync(process_set_id=current_process_set)
+                        print(f"end sync... {time.time()},{current_process_set}")
 
                     if update:
                         update = False
@@ -205,8 +210,10 @@ def run_fn(func, reset):
                     skip_sync = False
                     skip_reset = False
                 except HostsUpdatedInterrupt as e:
-                    skip_sync = e.skip_sync
+                    #skip_sync = e.skip_sync
+                    skip_sync = True
                     skip_reset = False
+                    old_rank = 1
                     update = True
                     update_time = time.time()
                     #functiontrace.trace()
