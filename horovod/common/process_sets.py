@@ -154,6 +154,9 @@ def read_new_rank_ready():
     assert _basics is not None
     return _basics._read_new_rank_ready()
 
+def get_process_set_ids_and_ranks():
+    return _basics._get_process_set_ids_and_ranks()
+
 def add_process_set(process_set: Union[ProcessSet, Sequence[int]]) -> ProcessSet:
     """ Add a new process_set after Horovod initialization and return it.
 

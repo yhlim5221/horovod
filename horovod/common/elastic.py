@@ -185,8 +185,6 @@ def run_fn(func, reset):
         update_time = 0
         try:
             while True:
-                print(f"global process set ranks: {global_process_set.ranks}"
-                      f"my rank: {state._rank()}")
                 try:
                     if number_of_process_sets() > 2 and \
                             is_process_set_included(2):
@@ -197,7 +195,7 @@ def run_fn(func, reset):
                             clean_temp_process_sets()
                             mark_new_rank_ready(False)
                         print(f"start sync...{time.time()}, {current_process_set}")
-                        state._sync(process_set_id=current_process_set)
+                        state.sync(old_rank=old_rank, process_set_id=current_process_set)
                         print(f"end sync... {time.time()},{current_process_set}")
 
                     if update:
@@ -216,11 +214,7 @@ def run_fn(func, reset):
                     old_rank = 1
                     update = True
                     update_time = time.time()
-                    #functiontrace.trace()
-                    #profiler = cProfile.Profile()
-                    #profiler.enable()
                 except NewRankReadyInterrupt:
-                    print("new rank ready...")
                     skip_reset = True
                     skip_sync = False
                     current_process_set = 0
@@ -234,7 +228,7 @@ def run_fn(func, reset):
                         current_process_set = 1
                         state.optimizer.process_set=_temp_process_set_object(1)
                         state._process_set=_temp_process_set_object(1)
-                    else :
+                    else:
                         rank_size = size_of_process_set(0)
                     state.on_reset()
         finally:
