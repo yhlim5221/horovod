@@ -171,7 +171,6 @@ class ModelStateHandler(StateHandler):
         self.value.load_state_dict(self._saved_model_state)
 
     def sync(self, root_rank=0, process_set_id=0):
-        print("sync models...")
         broadcast_parameters(self.value.state_dict(), root_rank=root_rank, 
                 process_set=_temp_process_set_object(process_set_id))
 
@@ -188,7 +187,6 @@ class OptimizerStateHandler(StateHandler):
         self.value.load_state_dict(self._saved_optimizer_state)
 
     def sync(self, root_rank=0, process_set_id=0):
-        print("sync optimizer...")
         broadcast_optimizer_state(self.value, root_rank=root_rank, 
                 process_set=_temp_process_set_object(process_set_id))
 
@@ -206,7 +204,6 @@ class SamplerStateHandler(StateHandler):
 
     def sync(self, root_rank=0, process_set_id=0):
         state_dict = self.value.state_dict()
-        print("sync sampler...")
         # Broadcast and load the state to make sure we're all in sync
         self.value.load_state_dict(broadcast_object(state_dict, root_rank=root_rank,
             process_set=_temp_process_set_object(process_set_id)))

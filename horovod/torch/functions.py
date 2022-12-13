@@ -52,7 +52,10 @@ def broadcast_parameters(params, root_rank, process_set=global_process_set):
     handles = []
     #bcast_size = 0
     #bcast_num = 0
+    #piscuda = 0
     for name, p in params:
+        #if p.is_cuda:
+        #    piscuda += 1
         #bcast_size += p.element_size() * p.nelement()
         #bcast_num += 1
         handle = broadcast_async_(p, root_rank, name, process_set)
