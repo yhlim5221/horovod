@@ -425,8 +425,7 @@ void ProcessSetTable::CheckNewRankReady_(const Context& global_context) {
   auto recv_buffer = std::vector<int>(2 * global_controller.GetSize());
   global_controller.Allgather2Ints(pairs, recv_buffer);
 
-  int half = Get(2).registered_global_ranks.size() / 2;
-  if (half == 0) half = 1;
+  int half = Get(2).registered_global_ranks.size();
   int count_until_half = 0;
   for (int i = 0; i < 2 * global_controller.GetSize() && count_until_half < half; i+=2) {
     auto ready = recv_buffer[i+1];

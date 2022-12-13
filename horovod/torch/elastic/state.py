@@ -14,6 +14,7 @@
 # ==============================================================================
 
 import copy
+import math
 
 import torch
 
@@ -21,7 +22,7 @@ from horovod.common.elastic import ObjectState
 from horovod.torch.elastic.sampler import ElasticSampler
 from horovod.torch.functions import allgather_object, \
     broadcast_object, broadcast_optimizer_state, broadcast_parameters
-from horovod.torch.mpi_ops import rank, cross_rank, cross_size, local_rank, local_size
+from horovod.torch.mpi_ops import rank, cross_rank, cross_size
 from horovod.common.process_sets import ProcessSet, global_process_set, \
         _temp_process_set_object, add_process_set, remove_process_set, \
         is_process_set_included
@@ -69,6 +70,8 @@ class TorchState(ObjectState):
 
 
     def sync(self, old_rank=0, process_set_id=0):
+        self.cross_rank = cross_rank()
+        self.cross_size = cross_size()
         if self.cross_size == 1:
             self._sync(process_set_id)
             return
@@ -83,32 +86,48 @@ class TorchState(ObjectState):
                 host_map[item[0].item()][old_new].append(item[1].item())
             else:
                 host_map[item[0].item()] = {old_new:[item[1].item()], complement_old_new:[]}
-        no_old_hosts = []
+
+        new_hosts = old_hosts = list()
         for i in range(self.cross_size):
             if not host_map[i]['old']:
-                no_old_hosts.append(host_map[i]['new'][0])
+                new_hosts.append(host_map[i]['new'][0])
                 host_map[i]['old']=[host_map[i]['new'][0]]
                 host_map[i]['new'].remove(host_map[i]['new'][0])
-        if len(no_old_hosts) == self.cross_size:
+            else:
+                old_hosts.append(host_map[i]['old'])
+
+        if len(new_hosts) == self.cross_size:
             return
-        if no_old_hosts:
-            """ If all the hosts are new, then no need to sync
-                add process set of no old worker hosts' first rank with rank 0
-                call _sync with them first
-                remove process set
-            """
-            no_old_hosts.append(0)
-            temp = add_process_set(no_old_hosts)
-            if is_process_set_included(temp.process_set_id):
-                _sync(process_set_id=temp.process_set_id)
-            remove_process_set(temp)
+
+        if new_hosts:
+            new_old_map = dict()
+            id_to_sync = [0 for x in range(len(old_hosts)+len(new_hosts))]
+            if len(old_hosts) >= len(new_hosts):
+                for i in range(len(new_hosts)):
+                    new_old_map[new_hosts[i]] = add_process_set([old_hosts[i]]+[new_hosts[i]])
+                    id_to_sync[new_hosts[i]] = id_to_sync[old_hosts[i]] = new_old_map[new_hosts[i]].process_set_id
+            else:
+                num_node_per_root = math.ceil(len(new_hosts)/len(old_hosts))
+                for i in range(len(old_hosts)):
+                    step = i * num_node_per_root
+                    new_old_map[old_hosts[i]] = add_process_set(
+                            [old_hosts[i]]+new_hosts[step:step+num_node_per_root])
+                    id_to_sync[new_hosts[i]] = id_to_sync[old_hosts[i]] = new_old_map[old_hosts[i]].process_set_id
+
+            ps_ranks = _get_process_set_ids_and_ranks()
+            if id_to_sync[self._rank()]:
+                _sync(root_rank=list(set(ps_ranks[id_to_sync[self._rank()]])&set(old_hosts))[0],
+                        process_set_id=id_to_sync[self._rank()])
+
+            for item in new_old_map.values():
+                remove_process_set(item)
 
         host_process_set_list = dict()
         for i in range(self.cross_size):
             if not host_map[i]['new']:
                 continue
-            print(str(i)+" "+str([host_map[i]['old'][0]]+host_map[i]['new']))
             host_process_set_list[i] = add_process_set([host_map[i]['old'][0]]+host_map[i]['new'])
+
         if host_process_set_list.get(self.cross_rank) and \
                 is_process_set_included(host_process_set_list[self.cross_rank].process_set_id): 
             self._sync(root_rank=host_process_set_list[self.cross_rank].ranks[0],
