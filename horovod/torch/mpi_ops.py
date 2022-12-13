@@ -94,11 +94,8 @@ def init(*args, **kwargs):
                 old_ranks.append(item[1].item())
             else:
                 new_ranks.append(item[1].item())
-        print(f"Adding process sets...{old_rank_size}")
         add_process_set(old_ranks)
         add_process_set(new_ranks)
-        print("Done Adding process sets...")
-    print("Done init...")
 
 # import reduction op values
 Average = _basics.Average

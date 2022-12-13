@@ -50,11 +50,11 @@ def broadcast_parameters(params, root_rank, process_set=global_process_set):
 
     # Run asynchronous broadcasts.
     handles = []
-    bcast_size = 0
-    bcast_num = 0
+    #bcast_size = 0
+    #bcast_num = 0
     for name, p in params:
-        bcast_size += p.element_size() * p.nelement()
-        bcast_num += 1
+        #bcast_size += p.element_size() * p.nelement()
+        #bcast_num += 1
         handle = broadcast_async_(p, root_rank, name, process_set)
         handles.append(handle)
     # Wait for completion.
@@ -229,8 +229,8 @@ def broadcast_object(obj, root_rank=0, name=None, process_set=global_process_set
 
     broadcast_(t, root_rank, name + '.t', process_set)
     
-    total_bcast_size = t.element_size() * t.nelement()
-    total_bcast_size += sz.element_size() * sz.nelement()
+    #total_bcast_size = t.element_size() * t.nelement()
+    #total_bcast_size += sz.element_size() * sz.nelement()
     if rank() != root_rank:
         buf = io.BytesIO(t.numpy().tobytes())
         obj = cloudpickle.load(buf)
