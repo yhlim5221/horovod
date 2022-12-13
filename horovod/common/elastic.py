@@ -16,10 +16,6 @@
 import functools
 import queue
 import time
-import functiontrace
-#import cProfile, pstats, io
-#from pstats import SortKey
-#import logging
 
 from horovod.common.exceptions import HorovodInternalError, HostsUpdatedInterrupt, NewRankReadyInterrupt
 from horovod.common.process_sets import ProcessSet, global_process_set, \
@@ -208,7 +204,6 @@ def run_fn(func, reset):
                     skip_sync = False
                     skip_reset = False
                 except HostsUpdatedInterrupt as e:
-                    #skip_sync = e.skip_sync
                     skip_sync = True
                     skip_reset = False
                     old_rank = 1

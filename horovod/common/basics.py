@@ -449,7 +449,6 @@ class HorovodBasics(object):
             mark = 1
         else :
             mark = 0
-        print(f"mark = {mark}")
         return int(self.MPI_LIB_CTYPES.horovod_mark_new_rank_ready(ctypes.c_int(mark)))
 
     def _read_new_rank_ready(self):

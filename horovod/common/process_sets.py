@@ -171,9 +171,7 @@ def add_process_set(process_set: Union[ProcessSet, Sequence[int]]) -> ProcessSet
             "Dynamically adding process sets defined by an MPI communicator is not implemented. "
             "Please build the process set via a list of ranks.")
     assert process_set.ranks is not None
-    print("calling _basics._add_process")
     process_set_id = _basics._add_process_set_impl(process_set.ranks)
-    print("Done add process set")
     if process_set_id is None:
         raise ValueError(f"Attempted to add a duplicate process set: {process_set}")
     process_set.process_set_id = process_set_id
