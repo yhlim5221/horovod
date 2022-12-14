@@ -25,7 +25,7 @@ from horovod.torch.functions import allgather_object, \
 from horovod.torch.mpi_ops import rank, cross_rank, cross_size
 from horovod.common.process_sets import ProcessSet, global_process_set, \
         _temp_process_set_object, add_process_set, remove_process_set, \
-        is_process_set_included
+        is_process_set_included, get_process_set_ids_and_ranks
 
 class TorchState(ObjectState):
     """State representation of a PyTorch training process.
@@ -95,7 +95,7 @@ class TorchState(ObjectState):
                 host_map[i]['old']=[host_map[i]['new'][0]]
                 host_map[i]['new'].remove(host_map[i]['new'][0])
             else:
-                old_hosts.append(host_map[i]['old'])
+                old_hosts.extend(host_map[i]['old'])
 
         if len(new_hosts) == self.cross_size:
             return
@@ -117,7 +117,7 @@ class TorchState(ObjectState):
 
             ps_ranks = _get_process_set_ids_and_ranks()
             if id_to_sync[self._rank()]:
-                _sync(root_rank=list(set(ps_ranks[id_to_sync[self._rank()]])&set(old_hosts))[0],
+                self._sync(root_rank=list(set(ps_ranks[id_to_sync[self._rank()]])&set(old_hosts))[0],
                         process_set_id=id_to_sync[self._rank()])
 
             for item in new_old_map.values():
