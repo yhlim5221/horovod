@@ -87,7 +87,8 @@ class TorchState(ObjectState):
             else:
                 host_map[item[0].item()] = {old_new:[item[1].item()], complement_old_new:[]}
 
-        new_hosts = old_hosts = list()
+        new_hosts = list()
+        old_hosts = list()
         for i in range(self.cross_size):
             if not host_map[i]['old']:
                 new_hosts.append(host_map[i]['new'][0])
