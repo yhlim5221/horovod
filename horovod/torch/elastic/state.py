@@ -106,16 +106,19 @@ class TorchState(ObjectState):
             if len(old_hosts) >= len(new_hosts):
                 for i in range(len(new_hosts)):
                     new_old_map[new_hosts[i]] = add_process_set([old_hosts[i]]+[new_hosts[i]])
-                    id_to_sync[new_hosts[i]] = id_to_sync[old_hosts[i]] = new_old_map[new_hosts[i]].process_set_id
+                    id_to_sync[new_hosts[i]] = new_old_map[new_hosts[i]].process_set_id
+                    id_to_sync[old_hosts[i]] = new_old_map[new_hosts[i]].process_set_id
             else:
                 num_node_per_root = math.ceil(len(new_hosts)/len(old_hosts))
                 for i in range(len(old_hosts)):
                     step = i * num_node_per_root
                     new_old_map[old_hosts[i]] = add_process_set(
                             [old_hosts[i]]+new_hosts[step:step+num_node_per_root])
-                    id_to_sync[new_hosts[i]] = id_to_sync[old_hosts[i]] = new_old_map[old_hosts[i]].process_set_id
+                    id_to_sync[new_hosts[step]:new_hosts[step+num_node_per_root]] = \
+                            [new_old_map[old_hosts[i]].process_set_id]*num_node_per_root
+                    id_to_sync[old_hosts[i]] = new_old_map[old_hosts[i]].process_set_id
 
-            ps_ranks = _get_process_set_ids_and_ranks()
+            ps_ranks = get_process_set_ids_and_ranks()
             if id_to_sync[self._rank()]:
                 self._sync(root_rank=list(set(ps_ranks[id_to_sync[self._rank()]])&set(old_hosts))[0],
                         process_set_id=id_to_sync[self._rank()])
