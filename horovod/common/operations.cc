@@ -780,7 +780,7 @@ bool RunLoopOnce(HorovodGlobalState& state) {
       // Check ready status for new ranks and set all process set table true
       // if more than half of the new ranks said ready, so that the training
       // ranks can raise exceptions.
-      if (state.process_set_table.Ids().size() > 2){
+      if (state.process_set_table.Ids().size() == 3){
         state.process_set_table.CheckNewRankReady(global_gloo_context);
       }
     }
